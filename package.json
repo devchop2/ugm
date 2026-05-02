@@ -1,0 +1,17 @@
+{
+  "name": "com.chopchopgames.ugm",
+  "version": "0.1.0",
+  "displayName": "Unity Game Maker (UGM)",
+  "description": "\uac8c\uc784 \uc81c\uc791\uc5d0 \ud544\uc694\ud55c \ubaa8\ub4c8\uc744 \uce74\ud0c8\ub85c\uadf8\uc5d0\uc11c \uc120\ud0dd\ud574 \uc784\ud3ec\ud2b8\ud558\ub294 \uc2dc\uc2a4\ud15c. \uc88c\uce21 \ubaa9\ub85d\uc5d0\uc11c \ubaa8\ub4c8\uc744 \uc120\ud0dd\ud558\uace0 Import \ubc84\ud2bc\uc744 \ub204\ub974\uba74 Assets/UGM/ \uc544\ub798\uc5d0 \ucd94\uac00\ub429\ub2c8\ub2e4.",
+  "unity": "2022.3",
+  "author": {
+    "name": "Lina"
+  },
+  "keywords": [
+    "ugm",
+    "module",
+    "package",
+    "manager",
+    "editor"
+  ]
+}
