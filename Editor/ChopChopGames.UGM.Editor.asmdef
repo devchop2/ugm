@@ -1,7 +1,9 @@
 {
-    "name": "UGM.Editor",
-    "rootNamespace": "UGM.Editor",
-    "references": [],
+    "name": "ChopChopGames.UGM.Editor",
+    "rootNamespace": "ChopChopGames.UGM.EditorTools",
+    "references": [
+        "ChopChopGames.UGM"
+    ],
     "includePlatforms": [
         "Editor"
     ],

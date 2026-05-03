@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace UGM.Editor
+namespace ChopChopGames.UGM.EditorTools
 {
     /// <summary>
     /// GitHub raw URL에서 registry.json을 받아와 Registry 객체로 역직렬화한다.
