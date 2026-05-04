@@ -12,12 +12,12 @@ namespace ChopChopGames.UGM.EditorTools
     /// UPM 임베디드 패키지로 등록한다.
     ///
     /// 흐름:
-    /// 1. 임시 폴더에 zip 다운로드 (Library/UGMCache/&lt;timestamp&gt;.zip)
-    /// 2. ZipArchive로 임시 폴더에 압축 해제
+    /// 1. 시스템 %TEMP%/UGMCache/ 폴더에 zip 다운로드 (Unity Library 영역 바깥)
+    /// 2. ZipArchive로 같은 위치에 압축 해제
     /// 3. 압축 해제된 폴더에서 package.json을 찾아 진짜 패키지 루트 식별
-    ///    (GitHub Release zip은 보통 모듈 루트에 package.json이 있음)
-    /// 4. 기존 Packages/&lt;name&gt;/ 가 있으면 백업 후 삭제
-    /// 5. 임시 추출 폴더 → Packages/&lt;name&gt;/ 으로 원자적 이동
+    ///    (GitHub Release zip은 보통 모듈 루트에 package.json, GitHub auto-archive는 wrapper 폴더 안에)
+    /// 4. 기존 Packages/&lt;name&gt;/ 가 있으면 삭제
+    /// 5. 추출된 패키지 내용을 Packages/&lt;name&gt;/ 으로 Copy + Delete (Move 대신 — Windows 파일 잠금 회피)
     /// 6. AssetDatabase.Refresh
     ///
     /// v1과의 차이: 옛 ModuleImporter는 module.files 배열 순회하며 raw URL로 파일을 받아
@@ -26,7 +26,15 @@ namespace ChopChopGames.UGM.EditorTools
     public static class ModuleImporter
     {
         private const string PackagesFolder = "Packages";
-        private const string CacheRelative = "Library/UGMCache";
+
+        /// <summary>
+        /// 시스템 임시 폴더 안에 UGM 작업용 sub. Library/ 안에 두면 Unity가 스캔·잠금해서
+        /// Directory.Move/Delete가 "Access denied"로 실패하는 이슈가 발생함.
+        /// </summary>
+        private static string GetCacheFolder()
+        {
+            return Path.Combine(Path.GetTempPath(), "UGMCache");
+        }
 
         public static void InstallAsync(ModuleManifest module, Action<bool, string> onComplete)
         {
@@ -54,11 +62,11 @@ namespace ChopChopGames.UGM.EditorTools
                 return;
             }
 
-            // 캐시 폴더 준비
-            Directory.CreateDirectory(CacheRelative);
+            var cacheFolder = GetCacheFolder();
+            Directory.CreateDirectory(cacheFolder);
             var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var zipPath = Path.Combine(CacheRelative, $"{module.name}-{module.version}-{ts}.zip");
-            var extractRoot = Path.Combine(CacheRelative, $"{module.name}-{module.version}-{ts}");
+            var zipPath = Path.Combine(cacheFolder, $"{module.name}-{module.version}-{ts}.zip");
+            var extractRoot = Path.Combine(cacheFolder, $"{module.name}-{module.version}-{ts}");
 
             EditorUtility.DisplayProgressBar("UGM Install", $"{module.displayName}: 다운로드 중...", 0.1f);
 
@@ -100,7 +108,6 @@ namespace ChopChopGames.UGM.EditorTools
                         return;
                     }
 
-                    // 추출된 폴더 안에서 package.json 위치 찾기 (GitHub Release zip은 보통 루트에)
                     var pkgRoot = FindPackageRoot(extractRoot);
                     if (string.IsNullOrEmpty(pkgRoot))
                     {
@@ -118,43 +125,47 @@ namespace ChopChopGames.UGM.EditorTools
 
                     var dest = Path.Combine(PackagesFolder, module.name).Replace('\\', '/');
 
-                    // 기존 설치본 백업·삭제
+                    // 기존 설치본 삭제 (있으면)
                     if (Directory.Exists(dest))
                     {
-                        var backup = dest + ".bak-" + ts;
                         try
                         {
-                            Directory.Move(dest, backup);
-                            Debug.Log($"[UGM] 기존 설치본 백업: {backup}");
-                            // 백업 즉시 삭제 (롤백 필요시 위쪽에서 catch로 처리)
-                            try { Directory.Delete(backup, recursive: true); } catch { /* 무시 */ }
+                            Directory.Delete(dest, recursive: true);
                         }
                         catch (Exception ex)
                         {
                             EditorUtility.ClearProgressBar();
-                            var err = $"기존 패키지 폴더를 정리하지 못했습니다: {ex.Message}";
+                            var err = $"기존 패키지 폴더를 정리하지 못했습니다: {ex.Message}\n경로: {dest}\nUnity가 파일을 잠그고 있을 수 있습니다. 잠시 후 재시도하세요.";
                             Debug.LogError($"[UGM] {err}");
                             EditorUtility.DisplayDialog("UGM", err, "확인");
+                            SafeDelete(zipPath);
+                            SafeDeleteDir(extractRoot);
                             onComplete?.Invoke(false, err);
                             return;
                         }
                     }
 
+                    // Copy + Delete (Move 대신) — Windows 파일 잠금에 더 강함.
+                    // Move는 같은 볼륨에서도 일부 파일이 잠겨 있으면 통째로 실패하지만,
+                    // Copy는 파일별로 진행하고 마지막에 원본을 지우므로 성공률이 높다.
                     try
                     {
-                        Directory.Move(pkgRoot, dest);
+                        Directory.CreateDirectory(dest);
+                        CopyDirectoryRecursive(pkgRoot, dest);
                     }
                     catch (Exception ex)
                     {
                         EditorUtility.ClearProgressBar();
-                        var err = $"패키지 이동 실패: {ex.Message}";
+                        var err = $"패키지 복사 실패: {ex.Message}\n원본: {pkgRoot}\n대상: {dest}";
                         Debug.LogError($"[UGM] {err}");
                         EditorUtility.DisplayDialog("UGM", err, "확인");
+                        // 부분 복사된 dest는 손상 가능성 있어 삭제 시도
+                        SafeDeleteDir(dest);
                         onComplete?.Invoke(false, err);
                         return;
                     }
 
-                    // 임시 폴더·zip 정리
+                    // 임시 폴더·zip 정리 (실패해도 동작에는 영향 없음 — %TEMP%니 OS가 청소)
                     SafeDelete(zipPath);
                     SafeDeleteDir(extractRoot);
 
@@ -192,6 +203,28 @@ namespace ChopChopGames.UGM.EditorTools
             catch { /* 무시 */ }
 
             return null;
+        }
+
+        /// <summary>
+        /// 재귀 디렉터리 복사. Directory.Move의 Windows 잠금 이슈를 회피하기 위해 사용.
+        /// </summary>
+        private static void CopyDirectoryRecursive(string sourceDir, string destDir)
+        {
+            Directory.CreateDirectory(destDir);
+
+            foreach (var file in Directory.GetFiles(sourceDir))
+            {
+                var fileName = Path.GetFileName(file);
+                var destFile = Path.Combine(destDir, fileName);
+                File.Copy(file, destFile, overwrite: true);
+            }
+
+            foreach (var subDir in Directory.GetDirectories(sourceDir))
+            {
+                var subName = Path.GetFileName(subDir);
+                var destSub = Path.Combine(destDir, subName);
+                CopyDirectoryRecursive(subDir, destSub);
+            }
         }
 
         private static void SafeDelete(string path)
