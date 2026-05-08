@@ -6,10 +6,8 @@ namespace ChopChopGames.UGM.EditorTools
     /// <summary>
     /// registry.json 의 단일 모듈 항목 (schemaVersion 2).
     ///
-    /// v1과의 차이:
-    /// - 옛 path/files 배열 제거 — UPM 패키지 전체를 zip으로 받아 Packages/ 에 푸는 방식이라 불필요.
-    /// - name (UPM 패키지 식별자) 추가 — Packages/ 아래 폴더명·UPM 의존성 해석에 사용.
-    /// - downloadUrl 추가 — GitHub Release zip URL.
+    /// v0.2.0+ 에서는 git URL 기반 설치를 우선 사용합니다 (Unity Package Manager 의 표준 방식).
+    /// 기존 downloadUrl(zip) 도 fallback 으로 유지되어 backward compatible.
     /// </summary>
     [Serializable]
     public class ModuleManifest
@@ -23,13 +21,20 @@ namespace ChopChopGames.UGM.EditorTools
         /// <summary>창에 표시되는 사람 친화적 이름. 예: "Google Sheet Table"</summary>
         public string displayName;
 
-        /// <summary>SemVer 버전. 예: "0.1.0"</summary>
+        /// <summary>SemVer 버전. 예: "0.1.1"</summary>
         public string version;
 
         /// <summary>한국어/영어 자유 — 모듈 설명. 길어도 됨.</summary>
         public string description;
 
-        /// <summary>GitHub Release zip 등 직접 다운로드 가능한 URL. UnityWebRequest로 받음.</summary>
+        /// <summary>
+        /// [v0.2.0+] git 패키지 URL. 예: "https://github.com/devchop2/ugm-mod-googlesheettable.git"
+        /// 설정 시 Unity Package Manager 의 git URL 방식으로 설치 (manifest.json 에 등록 → 자동 update 가능).
+        /// 비어있으면 downloadUrl(zip) fallback 사용.
+        /// </summary>
+        public string gitUrl;
+
+        /// <summary>GitHub Release zip 등 직접 다운로드 가능한 URL. UnityWebRequest로 받음. (legacy fallback)</summary>
         public string downloadUrl;
 
         /// <summary>v1 호환용 — legacy 모듈은 raw 폴더 경로를 가짐. 새 모듈은 null.</summary>
@@ -45,10 +50,13 @@ namespace ChopChopGames.UGM.EditorTools
         public List<string> dependencies = new List<string>();
 
         /// <summary>
-        /// schemaVersion 2 항목인지 빠르게 판별. v1 항목은 name/downloadUrl이 비어있고 legacyPath만 채워짐.
+        /// schemaVersion 2 항목인지 빠르게 판별. v1 항목은 name 이 비어있고 legacyPath만 채워짐.
         /// </summary>
         public bool IsLegacyV1 =>
-            string.IsNullOrEmpty(name) || string.IsNullOrEmpty(downloadUrl);
+            string.IsNullOrEmpty(name) || (string.IsNullOrEmpty(downloadUrl) && string.IsNullOrEmpty(gitUrl));
+
+        /// <summary>git URL 방식 설치 가능한가 (v0.2.0+ 권장).</summary>
+        public bool HasGitUrl => !string.IsNullOrEmpty(gitUrl);
     }
 
     /// <summary>

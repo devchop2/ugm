@@ -8,7 +8,12 @@ namespace ChopChopGames.UGM.EditorTools
 {
     /// <summary>
     /// UGM 메인 EditorWindow. Package Manager 처럼 좌측 모듈 목록 + 우측 상세 패널 구조.
-    /// 검색바로 필터링 가능. Install 버튼으로 GitHub Release zip을 받아 Packages/&lt;name&gt;/ 에 설치.
+    /// 검색바로 필터링 가능.
+    ///
+    /// [v0.2.0+] Install 버튼은 module 의 gitUrl 이 있으면 Unity Package Manager 의 git URL 방식
+    /// (manifest.json 의 dependencies 에 등록 → git fetch) 으로 설치합니다.
+    /// gitUrl 이 없는 옛 모듈은 zip 다운로드 방식(Packages/ 임베디드) 으로 fallback.
+    /// 임베디드된 옛 설치본은 "Migrate to git URL" 버튼으로 안전하게 전환 가능.
     /// </summary>
     public class UGMWindow : EditorWindow
     {
@@ -255,8 +260,17 @@ namespace ChopChopGames.UGM.EditorTools
             string statusText;
             if (_selected.IsLegacyV1) statusText = "이 모듈은 옛 v1 설계라 자동 설치 불가 (마이그레이션 필요)";
             else if (!info.Installed) statusText = "현재 상태: 설치되지 않음";
-            else if (info.InstalledVersion == _selected.version) statusText = $"현재 상태: 설치됨 (v{info.InstalledVersion})";
-            else statusText = $"현재 상태: 업데이트 가능 (설치된 v{info.InstalledVersion} → 카탈로그 v{_selected.version})";
+            else
+            {
+                string srcLabel = info.InstallSource == ModuleImporter.InstallSource.Embedded ? " [임베디드 — git URL 전환 권장]" :
+                                  info.InstallSource == ModuleImporter.InstallSource.Git ? " [git URL]" :
+                                  info.InstallSource == ModuleImporter.InstallSource.Registry ? " [registry]" :
+                                  info.InstallSource == ModuleImporter.InstallSource.LocalPath ? " [local]" : "";
+                if (info.InstalledVersion == _selected.version)
+                    statusText = $"현재 상태: 설치됨 (v{info.InstalledVersion}){srcLabel}";
+                else
+                    statusText = $"현재 상태: 업데이트 가능 (설치된 v{info.InstalledVersion} → 카탈로그 v{_selected.version}){srcLabel}";
+            }
 
             _detail.Add(new Label(statusText)
             {
@@ -284,6 +298,8 @@ namespace ChopChopGames.UGM.EditorTools
             {
                 string btnLabel;
                 if (!info.Installed) btnLabel = "Install";
+                else if (info.InstallSource == ModuleImporter.InstallSource.Embedded && _selected.HasGitUrl)
+                    btnLabel = "Migrate to git URL";
                 else if (info.InstalledVersion != _selected.version) btnLabel = $"Update to v{_selected.version}";
                 else btnLabel = "Reinstall";
 

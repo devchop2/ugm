@@ -1,6 +1,6 @@
 {
   "name": "com.chopchopgames.ugm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "Unity Game Maker (UGM)",
   "description": "게임 제작에 필요한 모듈을 카탈로그에서 선택해 임포트하는 시스템. Window > UGM > Open 으로 창을 열어 모듈을 검색하고 Install 버튼을 누르면 Packages/ 아래에 UPM 패키지로 설치됩니다. 공통 enum·storage 유틸도 포함.",
   "unity": "6000.0",
